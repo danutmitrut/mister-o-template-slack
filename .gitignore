@@ -1,0 +1,22 @@
+# Secrets și credențiale
+.env
+.credentials/
+
+# Directoare generate de agent
+memory/*
+!memory/.gitkeep
+data/
+.last-dream
+*.dream-backup-*
+
+# macOS
+.DS_Store
+
+# Claude Code
+.claude/scheduled_tasks.lock
+.claude/settings.local.json
+.claude/worktrees/
+
+# Logs
+*.log
+node_modules/

@@ -1,0 +1,25 @@
+{
+  "startup_delay": 3,
+  "crons": [
+    {
+      "interval": "1m",
+      "prompt": "Check Slack for new messages: bash .claude/skills/slack-bot/check-slack.sh\n\nIf there are no messages, do nothing.\n\nIf there ARE messages: read each message and reply in character (per your IDENTITY.md and SOUL.md). If the message contains feedback about your behavior (correction or confirmation), apply the Feedback Loop from CLAUDE.md."
+    },
+    {
+      "interval": "30m",
+      "prompt": "Run bash scripts/mark-alive.sh first (liveness signal). Then: Read HEARTBEAT.md and perform each task listed. Also read today's memory file at memory/{today's date}.md for context. Update the memory file with anything notable."
+    }
+  ],
+  "supervisor": {
+    "tick_seconds": 240,
+    "liveness_stale_seconds": 2700,
+    "flap_count": 3,
+    "flap_window_seconds": 1800,
+    "backoff_schedule": [600, 1200, 1800],
+    "pathological_count": 6,
+    "pathological_window_seconds": 7200,
+    "dry_run": false,
+    "test_slack_channel_id": "",
+    "auto_restart": false
+  }
+}
