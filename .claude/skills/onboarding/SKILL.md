@@ -5,7 +5,7 @@ description: "Interactive setup wizard for your AI agent. Use when: user says /o
 
 # Agent Onboarding Wizard
 
-Walk the user through setting up their personal AI agent step by step, over Slack once the bot is live (before that, over the terminal). Ask questions conversationally, fill out each file based on their answers, and set everything up.
+Walk the user through setting up their personal AI agent step by step, over Slack once the bot is live (before that, in the Claude Code chat in VS Code). Ask questions conversationally, fill out each file based on their answers, and set everything up.
 
 **This onboarding is incremental.** It detects what's already configured and skips those steps, so it is safe to re-run.
 
@@ -39,7 +39,7 @@ If everything except persistence is already configured, jump straight to Step 9 
 
 Run these steps in order. **Skip any step where the check shows it's already configured.** After each step, confirm what you wrote and ask if they want to change anything.
 
-Until Slack is live (Step 8), you talk to the user in the terminal. After Step 8, all interaction happens via Slack: read messages with `bash .claude/skills/slack-bot/check-slack.sh` and reply with `bash .claude/skills/slack-bot/send-slack.sh <channel_id> "<message>"`.
+Until Slack is live (Step 8), you talk to the user in the Claude Code chat. After Step 8, all interaction happens via Slack: read messages with `bash .claude/skills/slack-bot/check-slack.sh` and reply with `bash .claude/skills/slack-bot/send-slack.sh <channel_id> "<message>"`.
 
 ---
 
@@ -505,6 +505,6 @@ Close every terminal on your computer. Open a new one tomorrow. I'll still be he
 - After each file is written, briefly confirm what was written
 - If the user seems unsure about an answer, give examples to help them decide
 - **Detect existing setup and skip completed steps** - don't redo work already done
-- Before Slack is live you talk in the terminal; after Step 8 you talk via Slack (check-slack.sh / send-slack.sh)
+- Before Slack is live you talk in the Claude Code chat; after Step 8 you talk via Slack (check-slack.sh / send-slack.sh)
 - Execute launchctl commands directly - do NOT ask the user to run them manually
 - Always create .env with the Slack credentials BEFORE starting launchd

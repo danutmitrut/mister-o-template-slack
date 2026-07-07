@@ -30,6 +30,8 @@ Bazat pe [OpenClawdCode](https://skool.com/openclawdcode) (Lesson 3), extins cu 
 
 ## Instalare
 
+> Nu vrei terminal? Dacă folosești Claude Code în VS Code, urmează [`INSTALL.md`](INSTALL.md): îi dai lui Claude Code prompturi în limbaj normal și el rulează pașii. Secțiunea de mai jos e varianta cu comenzi manuale în terminal.
+
 ### 1. Clonează repo-ul
 
 ```bash
