@@ -21,4 +21,12 @@ assert_eq "600,1200,1800" "$(jq -r '.supervisor.backoff_schedule | map(tostring)
 hb="$(jq -r '.crons[] | select(.interval=="30m") | .prompt' "$CFG")"
 assert_contains "$hb" "bash scripts/mark-alive.sh" "heartbeat cron runs mark-alive first"
 
+# The comms cron is a safety net, not the delivery path: the listener wakes the agent.
+# A 1m interval here would put the per-minute context reload back and undo the savings.
+comms="$(jq -r '.crons[] | select(.prompt | contains("check-slack.sh")) | .interval' "$CFG")"
+assert_eq "1h" "$comms" "comms cron is the hourly safety net, not a 1m poll"
+comms_prompt="$(jq -r '.crons[] | select(.prompt | contains("check-slack.sh")) | .prompt' "$CFG")"
+assert_contains "$comms_prompt" "slack-listener-status.sh" "comms cron checks whether the listener is alive"
+assert_contains "$comms_prompt" "bash scripts/mark-alive.sh" "comms cron runs mark-alive first"
+
 t_summary

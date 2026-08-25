@@ -377,6 +377,34 @@ launchctl bootout gui/$(id -u) ~/Library/LaunchAgents/com.my-agent.plist 2>/dev/
 
 Tell the user: "I've generated the launchd config and registered your agent with macOS."
 
+#### 10b2: Start the Slack listener
+
+This is the piece that keeps the agent affordable. Without it the agent has to wake up on a timer just to ask "any messages?", and each of those wake-ups reloads its entire context whether or not anything arrived. The listener does that checking in plain shell, for free, and only wakes the agent when a message actually exists.
+
+Run these directly (do NOT ask the user):
+
+```bash
+bash scripts/generate-slack-listener-launchd.sh
+```
+
+```bash
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.my-agent-slack.plist
+```
+
+If bootstrap fails because it is already loaded, bootout first then bootstrap:
+```bash
+launchctl bootout gui/$(id -u) ~/Library/LaunchAgents/com.my-agent-slack.plist 2>/dev/null; launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.my-agent-slack.plist
+```
+
+Wait about 15 seconds, then verify:
+```bash
+bash scripts/slack-listener-status.sh
+```
+
+It must print `VIU` (alive). If it prints `MORT` (dead), check `~/.agent-logs/slack-listener.log` - the usual cause is a missing or wrong value in `.env`, or the bot not being a member of the channel.
+
+Tell the user: "The Slack listener is running. From now on your agent sleeps until you actually write to it, instead of waking up on a timer to check an empty inbox."
+
 #### 10c: Verify it started
 
 Wait a few seconds, then check:
@@ -441,7 +469,7 @@ Or add to your project's `.claude/settings.json`:
 }
 ```
 
-For a 24/7 agent checking Slack every minute and running heartbeats every 30 minutes, **Sonnet is strongly recommended.**"
+For a 24/7 agent that answers Slack messages and runs heartbeats every 30 minutes, **Sonnet is strongly recommended.**"
 
 #### 11c: Restart with production config
 

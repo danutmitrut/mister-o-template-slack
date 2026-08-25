@@ -2,8 +2,8 @@
   "startup_delay": 3,
   "crons": [
     {
-      "interval": "1m",
-      "prompt": "Check Slack for new messages: bash .claude/skills/slack-bot/check-slack.sh\n\nIf there are no messages, do nothing.\n\nIf there ARE messages: read each message and reply in character (per your IDENTITY.md and SOUL.md). If the message contains feedback about your behavior (correction or confirmation), apply the Feedback Loop from CLAUDE.md."
+      "interval": "1h",
+      "prompt": "Run bash scripts/mark-alive.sh first (deterministic liveness signal for the supervisor). Then:\n\nThis is the safety net for comms, not the main path. Messages normally do NOT arrive through this cron: the Slack listener (scripts/slack-listener.sh, launchd daemon com.my-agent-slack) wakes you the moment something actually arrives. This cron exists only to catch the case where the listener died with nobody noticing.\n\n1. Check the listener: bash scripts/slack-listener-status.sh\n2. If it reports MORT (dead), send the user a short Slack alert saying the listener is down and that you are back to checking once an hour, and tell them the restart command the status output printed.\n3. Run bash .claude/skills/slack-bot/check-slack.sh (it falls back to direct polling on its own when the listener is missing).\n\nIf there are no messages, do nothing else.\n\nIf there ARE messages: read each one and reply in character (per your IDENTITY.md and SOUL.md). If a message contains feedback about your behavior (correction or confirmation), apply the Feedback Loop from CLAUDE.md."
     },
     {
       "interval": "30m",

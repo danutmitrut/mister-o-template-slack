@@ -1,0 +1,26 @@
+{
+  "_comment": "Reguli pentru curățenia desktopului. Editabile. mode: 'dry-run' = doar raportează ce ar face (sigur); 'apply' = mută efectiv. Treci pe 'apply' DOAR după ce ai citit un raport dry-run și ești de acord cu el. Căile acceptă ~.",
+  "mode": "dry-run",
+  "desktop": "~/Desktop",
+  "icloud_videos_dir": "~/Library/Mobile Documents/com~apple~CloudDocs/FROM DESKTOP/VIDEOS",
+  "trash_dir": "~/.desktop-cleanup-trash",
+  "trash_retention_days": 30,
+  "log_dir": "~/.desktop-cleanup-logs",
+  "folders_registry": "~/.desktop-cleanup-folders.md",
+  "screenshot_name_patterns": ["screenshot", "screen shot", "captură de ecran", "captura de ecran", "cleanshot"],
+  "buckets": {
+    "Documente zilnice": ["md", "markdown", "txt"],
+    "Sheets": ["xls", "xlsx", "csv", "tsv", "numbers", "ods"],
+    "Docx": ["docx", "doc", "rtf", "odt"],
+    "PDF": ["pdf"],
+    "IMAGINE": ["jpg", "jpeg", "png", "heic", "gif", "webp", "tiff", "tif", "bmp", "svg"],
+    "AUDIO": ["mp3", "wav", "m4a", "aac", "flac", "ogg", "aiff", "aif", "opus"],
+    "ARCHIVE": ["zip", "rar", "7z", "tar", "gz", "tgz", "bz2", "xz"]
+  },
+  "video_extensions": ["mp4", "mov", "avi", "mkv", "m4v", "webm", "flv", "wmv"],
+  "screenshot_action": "soft_delete",
+  "never_touch": [
+    "Documente zilnice", "Sheets", "Docx", "PDF", "IMAGINE", "AUDIO", "ARCHIVE",
+    "FROM DESKTOP alias"
+  ]
+}

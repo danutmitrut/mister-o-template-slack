@@ -54,11 +54,15 @@ Replace `native` with `openclaw` or `project-root` if that's what was detected. 
 # For openclaw:
 echo "DREAM_MEMORY_TYPE=openclaw" > ~/.claude/skills/dream/.dream-config
 echo "DREAM_MEMORY_PATH=$(pwd)/memory" >> ~/.claude/skills/dream/.dream-config
+echo "DREAM_PROJECT_ROOT=$(pwd)" >> ~/.claude/skills/dream/.dream-config
 
 # For project-root:
 echo "DREAM_MEMORY_TYPE=project-root" > ~/.claude/skills/dream/.dream-config
 echo "DREAM_MEMORY_PATH=$(pwd)" >> ~/.claude/skills/dream/.dream-config
+echo "DREAM_PROJECT_ROOT=$(pwd)" >> ~/.claude/skills/dream/.dream-config
 ```
+
+`DREAM_PROJECT_ROOT` is the agent's root folder, which is not always the same as the memory path: with `openclaw` the memory lives one level down, in `memory/`. Consolidation needs the root to find `MEMORY.md` and the rest of the agent's files.
 
 ### Step 2: Install the Stop hook
 

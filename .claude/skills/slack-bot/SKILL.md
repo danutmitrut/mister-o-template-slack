@@ -41,11 +41,24 @@ Each incoming message is emitted as a compact JSON object:
 
 ## How It Works
 
-1. `check-slack.sh` calls the Slack Web API `conversations.history` endpoint for your channel
-2. It tracks the last seen message timestamp in `~/.claude-slack-ts`
-3. On first run it bootstraps to "now", so it never floods on the channel's backlog
-4. Only messages from the allowed user ID are returned (other users and bots are dropped)
-5. `send-slack.sh` calls `chat.postMessage` with mrkdwn support
+Messages reach you on one of two paths, and `check-slack.sh` picks the right one on its own.
+
+**Normal path, the listener.** `scripts/slack-listener.sh` runs as a launchd daemon, watches Slack in plain shell (which costs no tokens), and wakes you only when a message actually arrives. It drops messages into `~/.claude-slack-inbox.jsonl`. In this mode `check-slack.sh` just drains that inbox and never touches the Slack API. This is why you are not woken up once a minute to look at an empty channel.
+
+**Fallback path, direct polling.** If the listener is dead (its liveness beacon at `~/.agent-logs/slack-listener-alive` is older than 180 seconds), `check-slack.sh` polls Slack itself, exactly as it did before the listener existed. Comms survive a dead daemon, they just get slower and more expensive.
+
+Either way:
+
+1. The last seen message timestamp is tracked in `~/.claude-slack-ts`
+2. On first run it bootstraps to "now", so it never floods on the channel's backlog
+3. Only messages from the allowed user ID are returned (other users and bots are dropped)
+4. `send-slack.sh` calls `chat.postMessage` with mrkdwn support
+
+## When the listener is down
+
+The hourly comms cron runs `bash scripts/slack-listener-status.sh`. If it reports `MORT`, tell the user on Slack that the listener is down, pass on the restart command from the status output, and keep working. Do not silently absorb it: while it is down, every message is delayed by up to an hour.
+
+Full details in `docs/SLACK-LISTENER.md`.
 
 ## Notes
 
@@ -53,3 +66,4 @@ Each incoming message is emitted as a compact JSON object:
 - If no new messages exist, `check-slack.sh` returns empty output
 - Attached files are downloaded to `/tmp` and surfaced via `image_path` / `document_path`
 - The bot only sees messages in the one channel it was invited to (`SLACK_CHANNEL_ID`)
+- Never run the listener and the Socket Mode bridge at the same time: both would wake you for the same message

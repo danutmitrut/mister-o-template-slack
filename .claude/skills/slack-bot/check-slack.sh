@@ -1,11 +1,21 @@
 #!/bin/bash
 # Check for new Slack messages from the allowed user in the configured channel.
 # Usage: bash .claude/skills/slack-bot/check-slack.sh
+#
+# Two ways in. Normally scripts/slack-listener.sh is on watch, owns the Slack
+# connection and drops messages into an inbox file; this script just drains that
+# inbox, which costs nothing and never touches the API. If the listener is gone,
+# this script falls back to polling Slack directly, so comms survive a dead
+# daemon. Either way the output shape is identical.
 
 BOT_TOKEN="${SLACK_BOT_TOKEN}"
 CHANNEL_ID="${SLACK_CHANNEL_ID}"
 ALLOWED_USER="${SLACK_ALLOWED_USER}"   # Your Slack user ID (U...) - set in .env
-TS_FILE="$HOME/.claude-slack-ts"
+TS_FILE="${TS_FILE:-$HOME/.claude-slack-ts}"
+
+INBOX_FILE="${INBOX_FILE:-$HOME/.claude-slack-inbox.jsonl}"
+LISTENER_ALIVE_FILE="${LISTENER_ALIVE_FILE:-$HOME/.agent-logs/slack-listener-alive}"
+LISTENER_STALE_SECONDS="${LISTENER_STALE_SECONDS:-180}"
 
 if [ -z "$BOT_TOKEN" ]; then
   echo "ERROR: SLACK_BOT_TOKEN not set. Add to .env:"
@@ -26,49 +36,79 @@ if [ -z "$ALLOWED_USER" ]; then
   exit 1
 fi
 
-# First run: no offset yet. Bootstrap to "now" so we only ever process messages from
-# this point forward, never the entire channel backlog (Slack would return all history).
-if [ ! -f "$TS_FILE" ]; then
-  date +%s > "$TS_FILE"
+# Is the listener alive? When it is, it owns the timestamp file, and a second
+# reader here would both waste a rate-limited API call and race the watermark.
+listener_alive() {
+  [ -f "$LISTENER_ALIVE_FILE" ] || return 1
+  local beat now
+  beat=$(cat "$LISTENER_ALIVE_FILE" 2>/dev/null)
+  case "$beat" in ''|*[!0-9]*) return 1 ;; esac
+  now=$(date -u +%s)
+  [ $(( now - beat )) -le "$LISTENER_STALE_SECONDS" ]
+}
+
+MESSAGES="[]"
+
+if [ -s "$INBOX_FILE" ]; then
+  # Claim the inbox by renaming it: rename is atomic on the same filesystem, so
+  # a message the listener appends mid-read lands in a fresh inbox rather than
+  # being lost to a truncate. Contents are already filtered and chronological.
+  CLAIMED="${INBOX_FILE}.processing.$$"
+  if mv "$INBOX_FILE" "$CLAIMED" 2>/dev/null; then
+    MESSAGES=$(jq -s '.' < "$CLAIMED" 2>/dev/null || echo "[]")
+    rm -f "$CLAIMED"
+  fi
+elif listener_alive; then
+  # Listener is on watch and has nothing for us. Nothing to do, and polling here
+  # would only burn a request against the channel's rate limit.
   exit 0
+else
+  # Fallback: no listener, poll directly. This is the original path, kept intact.
+
+  # First run: no offset yet. Bootstrap to "now" so we only ever process messages from
+  # this point forward, never the entire channel backlog (Slack would return all history).
+  if [ ! -f "$TS_FILE" ]; then
+    date +%s > "$TS_FILE"
+    exit 0
+  fi
+
+  LAST_TS=$(cat "$TS_FILE" 2>/dev/null || echo "0")
+
+  # Fetch messages strictly newer than LAST_TS. --max-time caps the whole request so a
+  # stalled TCP connection can't hang the comms tick and deafen every later poll.
+  RESPONSE=$(curl -s --max-time 15 \
+    -H "Authorization: Bearer ${BOT_TOKEN}" \
+    --get "https://slack.com/api/conversations.history" \
+    --data-urlencode "channel=${CHANNEL_ID}" \
+    --data-urlencode "oldest=${LAST_TS}" \
+    --data-urlencode "inclusive=false" \
+    --data-urlencode "limit=50")
+
+  # A timed-out / failed poll yields empty output: treat as "no messages this tick" and
+  # exit cleanly without touching the offset, so the next tick simply retries.
+  if [ -z "$RESPONSE" ]; then
+    exit 0
+  fi
+
+  # Check for API errors (bad token, bot not in channel, etc.)
+  if echo "$RESPONSE" | jq -e '.ok == false' > /dev/null 2>&1; then
+    echo "ERROR: Slack API returned error:"
+    echo "$RESPONSE" | jq -r '.error'
+    exit 1
+  fi
+
+  # Advance the offset to the newest ts in the raw batch (before filtering), so a message
+  # from someone else still moves us forward and we never re-fetch the same window.
+  NEW_TS=$(echo "$RESPONSE" | jq -r '.messages[0].ts // empty')
+  if [ -n "$NEW_TS" ]; then
+    echo "$NEW_TS" > "$TS_FILE"
+  fi
+
+  # Slack returns newest-first; reverse to chronological order. Keep only real messages
+  # from the allowed user: drop bot echoes and system subtypes, but keep file shares.
+  MESSAGES=$(echo "$RESPONSE" | jq --arg uid "$ALLOWED_USER" \
+    '[.messages[] | select(.user == $uid and (.bot_id == null) and ((has("subtype") | not) or .subtype == "file_share"))] | reverse')
 fi
-
-LAST_TS=$(cat "$TS_FILE" 2>/dev/null || echo "0")
-
-# Fetch messages strictly newer than LAST_TS. --max-time caps the whole request so a
-# stalled TCP connection can't hang the comms tick and deafen every later poll.
-RESPONSE=$(curl -s --max-time 15 \
-  -H "Authorization: Bearer ${BOT_TOKEN}" \
-  --get "https://slack.com/api/conversations.history" \
-  --data-urlencode "channel=${CHANNEL_ID}" \
-  --data-urlencode "oldest=${LAST_TS}" \
-  --data-urlencode "inclusive=false" \
-  --data-urlencode "limit=50")
-
-# A timed-out / failed poll yields empty output: treat as "no messages this tick" and
-# exit cleanly without touching the offset, so the next tick simply retries.
-if [ -z "$RESPONSE" ]; then
-  exit 0
-fi
-
-# Check for API errors (bad token, bot not in channel, etc.)
-if echo "$RESPONSE" | jq -e '.ok == false' > /dev/null 2>&1; then
-  echo "ERROR: Slack API returned error:"
-  echo "$RESPONSE" | jq -r '.error'
-  exit 1
-fi
-
-# Advance the offset to the newest ts in the raw batch (before filtering), so a message
-# from someone else still moves us forward and we never re-fetch the same window.
-NEW_TS=$(echo "$RESPONSE" | jq -r '.messages[0].ts // empty')
-if [ -n "$NEW_TS" ]; then
-  echo "$NEW_TS" > "$TS_FILE"
-fi
-
-# Slack returns newest-first; reverse to chronological order. Keep only real messages
-# from the allowed user: drop bot echoes and system subtypes, but keep file shares.
-MESSAGES=$(echo "$RESPONSE" | jq --arg uid "$ALLOWED_USER" \
-  '[.messages[] | select(.user == $uid and (.bot_id == null) and ((has("subtype") | not) or .subtype == "file_share"))] | reverse')
 
 MSG_COUNT=$(echo "$MESSAGES" | jq 'length')
 if [ "$MSG_COUNT" -gt 0 ]; then

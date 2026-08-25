@@ -38,7 +38,7 @@ Your crons are defined in `config.json` under the `crons` array. Each entry has 
 2. For each entry in `crons`:
    - If entry has `interval`: use `/loop {interval} {prompt}`
    - If entry has `cron`: use CronCreate directly with that cron expression and the prompt
-3. Start with the shortest interval cron first (usually the 1m Slack check)
+3. Start with the shortest interval cron first
 
 ### Why this matters:
 Your agent process restarts every 71 hours to get fresh context. When it restarts, all /loop crons are gone. The startup prompt tells you to recreate them from config.json. This is how your crons survive restarts.
@@ -130,8 +130,13 @@ If the condition is met:
 
 You have a Slack bot skill at `.claude/skills/slack-bot/`.
 
+### How messages reach you
+A listener daemon (`scripts/slack-listener.sh`) watches Slack in the background and wakes you only when a message actually arrives. You are not woken on a timer to check an empty channel, which is what keeps this agent affordable to run.
+
+The hourly comms cron is the safety net for the case where that listener dies. It checks `bash scripts/slack-listener-status.sh` and tells you to alert the user on Slack if the listener is down.
+
 ### Checking messages
-Run `bash .claude/skills/slack-bot/check-slack.sh` to check for new messages.
+Run `bash .claude/skills/slack-bot/check-slack.sh` to check for new messages. It reads the listener's inbox, and falls back to polling Slack directly if the listener is gone.
 Each line is a JSON object with `chat_id`, `from`, `text`, and `date`. A message with an attached image also carries `image_path`; a message with a file carries `document_path` and `document_name` (use the Read tool on those paths to see the content).
 
 ### Sending replies

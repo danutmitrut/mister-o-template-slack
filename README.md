@@ -112,10 +112,14 @@ mister-o-template-slack/
 ├── GROUND-TRUTH.md        # Starea sistemelor — agentul completează
 ├── HEARTBEAT.md           # Checklist heartbeat — personalizează
 ├── config.json            # Configurație cron-uri și supervisor
+├── desktop-cleanup-rules.json # Reguli curățenie desktop (opțional, dry-run implicit)
 ├── slack-app-manifest.json # Manifest pentru crearea aplicației Slack
 ├── .env.example           # Template pentru variabile de mediu
+├── UPGRADE.md             # Cum aduci update-urile pe o instalare existentă
 ├── docs/
-│   └── SLACK-SETUP.md     # Ghid pas cu pas pentru aplicația Slack
+│   ├── SLACK-SETUP.md     # Ghid pas cu pas pentru aplicația Slack
+│   ├── SLACK-LISTENER.md  # Listenerul care ține agentul ieftin
+│   └── GMAIL.md           # Acces Gmail pentru agent (opțional)
 ├── scripts/               # Scripturi de infrastructură
 ├── tests/                 # Suite de teste bash
 └── .claude/
@@ -124,16 +128,27 @@ mister-o-template-slack/
         ├── slack-bot/       # Integrare Slack
         ├── dream/           # Consolidare memorie
         ├── skill-optimizer/ # Audit rulare skills
-        └── multimodal-rag/  # Knowledge base local
+        ├── multimodal-rag/  # Knowledge base local
+        ├── reflectie-zilnica/  # Rezumat de seară (opțional)
+        ├── desktop-cleanup/    # Curățenie desktop (opțional)
+        └── opus-distillation/  # Escaladare pe model puternic (opțional)
 ```
 
 ---
 
 ## Cum comunică agentul (pe scurt)
 
-Agentul folosește **polling**, nu un server. La fiecare minut, un cron rulează `check-slack.sh`, care citește mesajele noi din canal via `conversations.history` și răspunde cu `chat.postMessage`. De aceea manifestul nu are nevoie de Socket Mode, URL public sau event subscriptions - doar de permisiunile de bot. Botul vede doar canalul în care a fost invitat, și doar mesajele utilizatorului permis.
+Un **listener** rulează permanent în fundal ca daemon launchd (`scripts/slack-listener.sh`) și verifică mesajele noi în shell, la fiecare 10 secunde. Verificarea asta nu costă nimic. Agentul e trezit doar când chiar a venit un mesaj, iar atunci `check-slack.sh` îi predă mesajul și el răspunde cu `chat.postMessage`.
 
-Dacă vrei răspuns instant în loc de până la un minut, există o variantă opțională **Socket Mode** în [`slack-socket-bridge/`](slack-socket-bridge/): real-time, cu costul unei a doua componente de rulat. Rămâi pe polling dacă latența de un minut e acceptabilă (pentru un asistent personal, de regulă este).
+Distincția contează la factură. Fără listener, agentul trebuie trezit ca să-și verifice singur mesajele, iar la fiecare trezire își reîncarcă tot contextul, chiar dacă nu găsește nimic. Un cron la un minut înseamnă peste 500 de asemenea treziri pe zi, aproape toate pe un inbox gol. Cu listener, într-o zi liniștită agentul nu se trezește deloc pentru comunicare.
+
+Dacă listenerul moare, `check-slack.sh` observă singur și revine la interogare directă, iar un cron de siguranță verifică din oră în oră starea lui și te anunță pe Slack dacă a căzut. Comunicarea nu se rupe.
+
+Manifestul nu are nevoie de Socket Mode, URL public sau event subscriptions, doar de permisiunile de bot. Botul vede doar canalul în care a fost invitat, și doar mesajele utilizatorului permis.
+
+Detalii, reglaje și limitele de rate ale Slack: [`docs/SLACK-LISTENER.md`](docs/SLACK-LISTENER.md).
+
+Dacă vrei latență instantanee în loc de până la 10 secunde, există varianta opțională **Socket Mode** în [`slack-socket-bridge/`](slack-socket-bridge/), cu costul unei a doua componente de rulat. Nu rula ambele deodată.
 
 ---
 
