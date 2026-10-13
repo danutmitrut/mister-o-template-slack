@@ -24,12 +24,17 @@ if transcript_path and os.path.exists(transcript_path):
         messages = [json.loads(l) for l in lines if l.strip()]
         # Find last user and last assistant messages
         for msg in reversed(messages):
-            role = msg.get("role", "")
-            content = msg.get("content", "")
+            # Claude Code JSONL: role and content live under "message", not at the top level
+            if msg.get("type") not in ("user", "assistant"):
+                continue
+            role = msg.get("type")
+            content = msg.get("message", {}).get("content", "")
             if isinstance(content, list):
                 content = " ".join(
                     p.get("text", "") for p in content if isinstance(p, dict) and p.get("type") == "text"
                 )
+            if not str(content).strip():
+                continue  # tool results and tool calls carry no text
             if role == "user" and not user_prompt:
                 user_prompt = str(content)[:200]
             elif role == "assistant" and not assistant_summary:
@@ -39,8 +44,12 @@ if transcript_path and os.path.exists(transcript_path):
     except Exception:
         pass
 
+# The Stop hook input carries the final reply; the transcript may not have it yet.
+if data.get("last_assistant_message"):
+    assistant_summary = str(data["last_assistant_message"])[:300]
+
 entry = {
-    "ts": datetime.datetime.now(datetime.timezone.utc).isoformat() + "Z",
+    "ts": datetime.datetime.now(datetime.timezone.utc).isoformat().replace("+00:00", "Z"),
     "session": session_id,
     "user_prompt": user_prompt,
     "assistant_summary": assistant_summary,
